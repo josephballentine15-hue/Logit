@@ -4,6 +4,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Served from https://<user>.github.io/Logit/
+  base: '/Logit/',
   plugins: [
     react(),
     VitePWA({
@@ -17,7 +19,8 @@ export default defineConfig({
         background_color: '#000000',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/',
+        start_url: '/Logit/',
+        scope: '/Logit/',
         icons: [
           { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
           { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },

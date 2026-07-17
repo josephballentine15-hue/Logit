@@ -38,7 +38,7 @@ export default function SheetList({ onOpen }: Props) {
     <div className="page">
       <header className="topbar">
         <div className="brand">
-          <img src="/favicon.svg" alt="" width={30} height={30} />
+          <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" width={30} height={30} />
           <h1>Logit</h1>
         </div>
         <ThemeToggle />
