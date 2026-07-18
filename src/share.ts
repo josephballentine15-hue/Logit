@@ -11,7 +11,36 @@ export interface SheetTotals {
   net: number
 }
 
-/** Human-readable summary, good for SMS / WhatsApp / email body. */
+const RULE = '────────────────────────'
+
+function rowHasContent(r: LoadRow): boolean {
+  return !!(
+    r.date ||
+    r.container ||
+    r.chassis ||
+    r.from ||
+    r.to ||
+    r.notes ||
+    r.rate != null ||
+    r.miles != null ||
+    r.hours != null
+  )
+}
+
+function formatLoadBlock(r: LoadRow, index: number, payType: PayType): string {
+  const lines: string[] = [`${index}.  ${r.date || 'No date'}`]
+  if (r.container) lines.push(`    Container:  ${r.container}`)
+  if (r.chassis) lines.push(`    Chassis:    ${r.chassis}`)
+  if (r.from || r.to) lines.push(`    Route:      ${r.from || '—'} → ${r.to || '—'}`)
+  if (r.miles != null) lines.push(`    Miles:      ${r.miles.toLocaleString()}`)
+  if (r.hours != null) lines.push(`    Hours:      ${r.hours.toLocaleString()}`)
+  if (r.rate != null) lines.push(`    Rate:       ${money(r.rate)}`)
+  else if (payType === 'percent') lines.push(`    Rate:       —`)
+  if (r.notes) lines.push(`    Notes:      ${r.notes}`)
+  return lines.join('\n')
+}
+
+/** Human-readable summary for SMS / WhatsApp / email / print. */
 export function buildSheetText(
   sheet: Sheet,
   rows: LoadRow[],
@@ -23,52 +52,73 @@ export function buildSheetText(
   const payRate = sheet.payRate ?? 0
   const weekTotals = computeWeekTotals(sheet, rows)
   const lines: string[] = []
-  lines.push(sheet.title + (sheet.driver ? ` — Driver: ${sheet.driver}` : ''))
+
+  lines.push(sheet.title || 'Logit sheet')
+  if (sheet.driver) lines.push(`Driver: ${sheet.driver}`)
+  lines.push('')
+  lines.push(RULE)
+  lines.push('LOADS')
+  lines.push(RULE)
   lines.push('')
 
+  let loadNum = 0
+  let wroteAnyLoad = false
   for (const r of rows) {
     if (r.kind === 'divider') {
       lines.push('')
-      lines.push(`=== ${r.date || 'Week'} — ${money(weekTotals.get(r.id) ?? 0)} ===`)
+      lines.push(`▸ ${r.date || 'Week'}  ·  ${money(weekTotals.get(r.id) ?? 0)}`)
+      lines.push('')
       continue
     }
-    const parts: string[] = []
-    if (r.date) parts.push(r.date)
-    if (r.container) parts.push(r.container)
-    if (r.chassis) parts.push(`ch ${r.chassis}`)
-    if (r.from || r.to) parts.push(`${r.from || '?'} > ${r.to || '?'}`)
-    if (r.miles != null) parts.push(`${r.miles.toLocaleString()} mi`)
-    if (r.hours != null) parts.push(`${r.hours.toLocaleString()} hr`)
-    if (r.rate != null) parts.push(money(r.rate))
-    else if (payType === 'percent') parts.push('—')
-    if (r.notes) parts.push(`(${r.notes})`)
-    lines.push(parts.join('  '))
+    if (!rowHasContent(r)) continue
+    loadNum += 1
+    wroteAnyLoad = true
+    lines.push(formatLoadBlock(r, loadNum, payType))
+    lines.push('')
+  }
+
+  if (!wroteAnyLoad) {
+    lines.push('(No loads yet)')
+    lines.push('')
+  }
+
+  lines.push(RULE)
+  lines.push('SUMMARY')
+  lines.push(RULE)
+
+  if (payType === 'mile') {
+    lines.push(
+      `Miles:          ${totals.totalMiles.toLocaleString()} × ${money(payRate)}/mi = ${money(totals.totalMiles * payRate)}`,
+    )
+    if (totals.gross !== 0) lines.push(`Loads total:    ${money(totals.gross)}`)
+  } else if (payType === 'hour') {
+    lines.push(
+      `Hours:          ${totals.totalHours.toLocaleString()} × ${money(payRate)}/hr = ${money(totals.totalHours * payRate)}`,
+    )
+    if (totals.gross !== 0) lines.push(`Loads total:    ${money(totals.gross)}`)
+  } else {
+    lines.push(`Loads total:    ${money(totals.gross)}`)
+    if (normalizePercent(sheet.percent) !== 100) {
+      lines.push(
+        `Driver cut:     ${normalizePercent(sheet.percent)}% = ${money(totals.driverShare)}`,
+      )
+    }
+  }
+
+  for (const x of extras) {
+    if (!x.amount && !x.label) continue
+    lines.push(`+ ${x.label || 'Extra'}:   +${money(x.amount)}`)
+  }
+  for (const d of deductions) {
+    if (!d.amount && !d.label) continue
+    lines.push(`− ${d.label || 'Deduction'}:   −${money(d.amount)}`)
   }
 
   lines.push('')
-  if (payType === 'mile') {
-    lines.push(
-      `Miles: ${totals.totalMiles.toLocaleString()} × ${money(payRate)}/mi = ${money(totals.totalMiles * payRate)}`,
-    )
-    if (totals.gross !== 0) lines.push(`Loads total: ${money(totals.gross)}`)
-  } else if (payType === 'hour') {
-    lines.push(
-      `Hours: ${totals.totalHours.toLocaleString()} × ${money(payRate)}/hr = ${money(totals.totalHours * payRate)}`,
-    )
-    if (totals.gross !== 0) lines.push(`Loads total: ${money(totals.gross)}`)
-  } else {
-    lines.push(`Loads total: ${money(totals.gross)}`)
-    if (normalizePercent(sheet.percent) !== 100) {
-      lines.push(`Driver ${normalizePercent(sheet.percent)}%: ${money(totals.driverShare)}`)
-    }
-  }
-  for (const x of extras) {
-    lines.push(`Extra${x.label ? ` (${x.label})` : ''}: +${money(x.amount)}`)
-  }
-  for (const d of deductions) {
-    lines.push(`Deduction${d.label ? ` (${d.label})` : ''}: -${money(d.amount)}`)
-  }
-  lines.push(`PAY: ${money(totals.net)}`)
+  lines.push(`PAY:            ${money(totals.net)}`)
+  lines.push('')
+  lines.push('Sent from Logit')
+
   return lines.join('\n')
 }
 
@@ -84,7 +134,6 @@ export function buildCsv(
   const payRate = sheet.payRate ?? 0
   const hidden = sheet.hiddenCols ?? []
 
-  // Mirror the visible table: label columns, then Miles/Hours, then Rate, Notes
   const showMiles = payType === 'mile' || !!sheet.showMiles
   const showHours = payType === 'hour'
   const labelCols: { header: string; get: (r: LoadRow) => string }[] = [
@@ -95,8 +144,12 @@ export function buildCsv(
     ...(!hidden.includes('chassis') ? [{ header: 'Chassis', get: (r: LoadRow) => r.chassis }] : []),
     ...(!hidden.includes('from') ? [{ header: 'From', get: (r: LoadRow) => r.from }] : []),
     ...(!hidden.includes('to') ? [{ header: 'To', get: (r: LoadRow) => r.to }] : []),
-    ...(showMiles ? [{ header: 'Miles', get: (r: LoadRow) => (r.miles != null ? String(r.miles) : '') }] : []),
-    ...(showHours ? [{ header: 'Hours', get: (r: LoadRow) => (r.hours != null ? String(r.hours) : '') }] : []),
+    ...(showMiles
+      ? [{ header: 'Miles', get: (r: LoadRow) => (r.miles != null ? String(r.miles) : '') }]
+      : []),
+    ...(showHours
+      ? [{ header: 'Hours', get: (r: LoadRow) => (r.hours != null ? String(r.hours) : '') }]
+      : []),
   ]
   const includeNotes = !hidden.includes('notes')
   const header = [
@@ -104,8 +157,7 @@ export function buildCsv(
     'Rate',
     ...(includeNotes ? ['Notes'] : []),
   ].join(',')
-  // Summary amounts line up under the Rate column
-  const pad = ','.repeat(labelCols.length - 1)
+  const pad = ','.repeat(Math.max(labelCols.length - 1, 0))
   const tail = includeNotes ? ',' : ''
 
   const weekTotals = computeWeekTotals(sheet, rows)
@@ -113,7 +165,7 @@ export function buildCsv(
     if (r.kind === 'divider') {
       return [
         esc(r.date || 'Week'),
-        ...Array(labelCols.length - 1).fill(''),
+        ...Array(Math.max(labelCols.length - 1, 0)).fill(''),
         (weekTotals.get(r.id) ?? 0).toFixed(2),
         ...(includeNotes ? [''] : []),
       ].join(',')
@@ -178,19 +230,16 @@ export function csvFileName(sheet: Sheet): string {
   return `${(sheet.title.replace(/[^\w\- ]/g, '').trim() || 'logit-sheet')}.csv`
 }
 
-/** Open the native share sheet with plain text. Returns false if unsupported. */
 export async function shareViaSystem(title: string, text: string): Promise<boolean> {
   if (!navigator.share) return false
   try {
     await navigator.share({ title, text })
     return true
   } catch (err) {
-    // User closing the share sheet is not a failure
     return (err as DOMException)?.name === 'AbortError'
   }
 }
 
-/** Share the CSV as a real file attachment. Returns false if unsupported. */
 export async function shareCsvFile(sheet: Sheet, csv: string): Promise<boolean> {
   const file = new File([csv], csvFileName(sheet), { type: 'text/csv' })
   if (!navigator.canShare?.({ files: [file] })) return false
@@ -220,7 +269,6 @@ export function downloadCsv(sheet: Sheet, csv: string): void {
   URL.revokeObjectURL(a.href)
 }
 
-/** mailto: fallback so "send by email" always works, even without Web Share. */
 export function mailtoLink(sheet: Sheet, text: string): string {
   return `mailto:?subject=${encodeURIComponent(sheet.title)}&body=${encodeURIComponent(text)}`
 }

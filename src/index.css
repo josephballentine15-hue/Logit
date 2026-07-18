@@ -797,19 +797,115 @@ tr.divider-row input {
 
 /* ---------- share modal ---------- */
 
-.share-preview {
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px;
-  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
-  font-size: 12.5px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 34dvh;
-  overflow-y: auto;
+.share-modal {
+  gap: 10px;
+}
+
+.share-hint {
   margin: 0;
+  font-size: 13px;
+}
+
+.share-preview-card {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 14px 10px;
+  max-height: 48dvh;
+  overflow-y: auto;
+}
+
+.share-doc-head h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.share-doc-sub {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.share-section-label {
+  margin: 18px 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+
+.share-week {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 8px;
+  padding: 8px 0;
+  border-top: 2px solid var(--fg, var(--text));
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+}
+
+.share-load {
+  padding: 10px 0 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.share-load:last-of-type {
+  border-bottom: none;
+}
+
+.share-load > strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 15px;
+}
+
+.share-field {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  padding: 2px 0;
+}
+
+.share-field > span:first-child {
+  color: var(--muted);
+}
+
+.share-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+
+.share-sum-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.share-sum-line.extra {
+  color: var(--text);
+}
+
+.share-sum-line.deduction {
+  color: var(--danger);
+}
+
+.share-sum-line.pay {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 2px solid var(--fg, var(--text));
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .share-actions {
