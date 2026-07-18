@@ -877,6 +877,7 @@ table.share-sheet th {
 table.share-sheet td.date {
   white-space: nowrap;
   width: 12%;
+  font-weight: 700;
 }
 
 table.share-sheet td.mono {
@@ -890,10 +891,25 @@ table.share-sheet td.num {
   font-variant-numeric: tabular-nums;
 }
 
+/* Clear line between each load */
+table.share-sheet tr.load td {
+  border-top: 1px solid #b0b0b0;
+}
+
+/* Stronger line + tint when a new day starts */
+table.share-sheet tr.day-start td {
+  border-top: 2.5px solid #222;
+  background: #fafafa;
+}
+
+table.share-sheet tr.day-start td.date {
+  background: #eef2ff;
+}
+
 tr.share-sheet-week td {
   background: #dbeafe;
   font-weight: 700;
-  border-top: 2px solid #333;
+  border-top: 2.5px solid #222;
 }
 
 tr.share-sheet-week td span {

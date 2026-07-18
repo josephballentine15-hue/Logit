@@ -143,7 +143,8 @@ export default function ShareModal({ sheet, rows, extras, deductions, totals, on
         continue
       }
       if (!rowHasContent(r)) continue
-      bodyRows.push(`<tr>
+      const dayStart = !!(displayDates.get(r.id) ?? '')
+      bodyRows.push(`<tr class="${dayStart ? 'day-start' : 'load'}">
         <td class="date">${escHtml(displayDates.get(r.id) ?? '')}</td>
         <td class="mono">${escHtml(r.container)}</td>
         <td class="mono">${escHtml(r.chassis)}</td>
@@ -240,13 +241,21 @@ export default function ShareModal({ sheet, rows, extras, deductions, totals, on
     text-align: left;
     font-size: 11px;
   }
-  td.date { width: 12%; white-space: nowrap; }
+  td.date { width: 12%; white-space: nowrap; font-weight: 700; }
   td.mono { font-family: Consolas, "Courier New", monospace; font-size: 11px; }
   td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  /* Line between every load */
+  tr.load td { border-top: 1px solid #b0b0b0; }
+  /* Stronger line between different days */
+  tr.day-start td {
+    border-top: 2.5px solid #222;
+    background: #fafafa;
+  }
+  tr.day-start td.date { background: #eef2ff; }
   tr.week td {
     background: #dbeafe;
     font-weight: 700;
-    border-top: 2px solid #333;
+    border-top: 2.5px solid #222;
   }
   tr.week td span:last-child { float: right; }
   .summary {
@@ -356,8 +365,9 @@ export default function ShareModal({ sheet, rows, extras, deductions, totals, on
                     )
                   }
                   if (!rowHasContent(r)) return null
+                  const dayStart = !!(displayDates.get(r.id) ?? '')
                   return (
-                    <tr key={r.id}>
+                    <tr key={r.id} className={dayStart ? 'day-start' : 'load'}>
                       <td className="date">{displayDates.get(r.id) ?? ''}</td>
                       <td className="mono">{r.container}</td>
                       <td className="mono">{r.chassis}</td>

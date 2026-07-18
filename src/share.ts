@@ -70,6 +70,7 @@ export function buildSheetText(
     if (!rowHasContent(r)) continue
     wroteAny = true
     const date = r.date.trim() && r.date.trim() !== lastDate ? r.date.trim() : ''
+    if (date && lastDate) lines.push('') // blank line between different days
     if (r.date.trim()) lastDate = r.date.trim()
 
     let row = `${pad(date, 7)}${pad(r.container, 12)}${pad(r.chassis, 12)}${pad(r.from, 9)}${pad(r.to, 9)}`
