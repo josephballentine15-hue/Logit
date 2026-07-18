@@ -35,10 +35,20 @@ function rowHasContent(r: LoadRow): boolean {
   )
 }
 
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 export default function ShareModal({ sheet, rows, extras, deductions, totals, onClose }: Props) {
   const [status, setStatus] = useState('')
   const payType: PayType = sheet.payType ?? 'percent'
   const payRate = sheet.payRate ?? 0
+  const showMiles = payType === 'mile' || !!sheet.showMiles
+  const showHours = payType === 'hour'
 
   const text = useMemo(
     () => buildSheetText(sheet, rows, extras, deductions, totals),
@@ -51,7 +61,6 @@ export default function ShareModal({ sheet, rows, extras, deductions, totals, on
 
   const canSystemShare = typeof navigator.share === 'function'
 
-  // Week subtotals for the on-screen preview
   const weekTotals = useMemo(() => {
     const map = new Map<string, number>()
     let current: string | null = null
@@ -72,17 +81,28 @@ export default function ShareModal({ sheet, rows, extras, deductions, totals, on
     return map
   }, [rows, payType, payRate])
 
-  const loadNumbers = useMemo(() => {
-    const map = new Map<string, number>()
-    let n = 0
+  /** Date shown only on the first load of each date group (like the paper sheet). */
+  const displayDates = useMemo(() => {
+    const map = new Map<string, string>()
+    let last = ''
     for (const r of rows) {
-      if (r.kind !== 'divider' && rowHasContent(r)) {
-        n += 1
-        map.set(r.id, n)
+      if (r.kind === 'divider') {
+        last = ''
+        continue
+      }
+      if (!rowHasContent(r)) continue
+      const d = r.date.trim()
+      if (d && d !== last) {
+        map.set(r.id, d)
+        last = d
+      } else {
+        map.set(r.id, '')
       }
     }
     return map
   }, [rows])
+
+  const colCount = 6 + (showMiles ? 1 : 0) + (showHours ? 1 : 0)
 
   async function handleShareText() {
     const ok = await shareViaSystem(sheet.title, text)
@@ -115,27 +135,177 @@ export default function ShareModal({ sheet, rows, extras, deductions, totals, on
       setStatus('Pop-up blocked — allow pop-ups to print, or use Copy / Email instead.')
       return
     }
-    const safe = (s: string) =>
-      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${safe(sheet.title)}</title>
+
+    const bodyRows: string[] = []
+    for (const r of rows) {
+      if (r.kind === 'divider') {
+        bodyRows.push(`<tr class="week"><td colspan="${colCount}"><span>${escHtml(r.date || 'Week')}</span><span>${escHtml(money(weekTotals.get(r.id) ?? 0))}</span></td></tr>`)
+        continue
+      }
+      if (!rowHasContent(r)) continue
+      bodyRows.push(`<tr>
+        <td class="date">${escHtml(displayDates.get(r.id) ?? '')}</td>
+        <td class="mono">${escHtml(r.container)}</td>
+        <td class="mono">${escHtml(r.chassis)}</td>
+        <td>${escHtml(r.from)}</td>
+        <td>${escHtml(r.to)}</td>
+        ${showMiles ? `<td class="num">${r.miles != null ? escHtml(String(r.miles)) : ''}</td>` : ''}
+        ${showHours ? `<td class="num">${r.hours != null ? escHtml(String(r.hours)) : ''}</td>` : ''}
+        <td class="num">${r.rate != null ? escHtml(money(r.rate)) : ''}</td>
+      </tr>`)
+    }
+
+    const summaryLines: string[] = []
+    if (payType === 'mile') {
+      summaryLines.push(
+        `<div class="sum"><span>Miles (${totals.totalMiles.toLocaleString()} × ${escHtml(money(payRate))}/mi)</span><span>${escHtml(money(totals.totalMiles * payRate))}</span></div>`,
+      )
+      if (totals.gross !== 0) {
+        summaryLines.push(
+          `<div class="sum"><span>Loads total</span><span>${escHtml(money(totals.gross))}</span></div>`,
+        )
+      }
+    } else if (payType === 'hour') {
+      summaryLines.push(
+        `<div class="sum"><span>Hours (${totals.totalHours.toLocaleString()} × ${escHtml(money(payRate))}/hr)</span><span>${escHtml(money(totals.totalHours * payRate))}</span></div>`,
+      )
+      if (totals.gross !== 0) {
+        summaryLines.push(
+          `<div class="sum"><span>Loads total</span><span>${escHtml(money(totals.gross))}</span></div>`,
+        )
+      }
+    } else {
+      summaryLines.push(
+        `<div class="sum"><span>Loads total</span><span>${escHtml(money(totals.gross))}</span></div>`,
+      )
+      if (normalizePercent(sheet.percent) !== 100) {
+        summaryLines.push(
+          `<div class="sum"><span>Driver cut (${normalizePercent(sheet.percent)}%)</span><span>${escHtml(money(totals.driverShare))}</span></div>`,
+        )
+      }
+    }
+    for (const x of extras.filter((e) => e.amount || e.label)) {
+      summaryLines.push(
+        `<div class="sum"><span>+ ${escHtml(x.label || 'Extra')}</span><span>+${escHtml(money(x.amount))}</span></div>`,
+      )
+    }
+    for (const d of deductions.filter((e) => e.amount || e.label)) {
+      summaryLines.push(
+        `<div class="sum"><span>− ${escHtml(d.label || 'Deduction')}</span><span>−${escHtml(money(d.amount))}</span></div>`,
+      )
+    }
+
+    w.document.write(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${escHtml(sheet.title || 'Logit')}</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 24px auto; padding: 0 16px; color: #111; line-height: 1.45; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  .sub { color: #555; margin-bottom: 20px; }
-  h2 { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: #666; border-bottom: 1px solid #ccc; padding-bottom: 6px; margin: 24px 0 12px; }
-  .load { margin: 0 0 16px; padding: 0 0 12px; border-bottom: 1px solid #eee; }
-  .load:last-child { border-bottom: none; }
-  .load strong { display: block; margin-bottom: 4px; }
-  .row { display: flex; gap: 8px; font-size: 14px; }
-  .label { width: 88px; color: #666; flex-shrink: 0; }
-  .week { font-weight: 700; margin: 18px 0 8px; padding: 8px 0; border-top: 2px solid #111; border-bottom: 1px solid #ccc; }
-  .sum { display: flex; justify-content: space-between; font-size: 15px; margin: 4px 0; }
-  .pay { font-size: 20px; font-weight: 700; margin-top: 12px; display: flex; justify-content: space-between; border-top: 2px solid #111; padding-top: 10px; }
-  @media print { body { margin: 0; } }
-</style></head><body>
-<pre style="font-family:inherit;white-space:pre-wrap;font-size:14px">${safe(text)}</pre>
-<script>window.onload=()=>{window.print();}</script>
-</body></html>`)
+  @page { size: portrait; margin: 0.5in; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto;
+    padding: 16px;
+    max-width: 700px;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #111;
+    background: #fff;
+    font-size: 12px;
+    line-height: 1.25;
+  }
+  .banner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid #999;
+    margin-bottom: 10px;
+  }
+  .banner div { padding: 8px 10px; }
+  .banner .title { background: #f8d7da; font-weight: 700; border-right: 1px solid #999; }
+  .banner .driver { background: #fff; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  th, td {
+    border: 1px solid #b0b0b0;
+    padding: 5px 6px;
+    vertical-align: top;
+    word-wrap: break-word;
+  }
+  th {
+    background: #f3f3f3;
+    font-weight: 700;
+    text-align: left;
+    font-size: 11px;
+  }
+  td.date { width: 12%; white-space: nowrap; }
+  td.mono { font-family: Consolas, "Courier New", monospace; font-size: 11px; }
+  td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  tr.week td {
+    background: #dbeafe;
+    font-weight: 700;
+    border-top: 2px solid #333;
+  }
+  tr.week td span:last-child { float: right; }
+  .summary {
+    margin-top: 14px;
+    max-width: 320px;
+    margin-left: auto;
+  }
+  .sum {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 3px 0;
+    border-bottom: 1px solid #ddd;
+  }
+  .pay {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 2px solid #111;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .foot { margin-top: 18px; color: #777; font-size: 10px; }
+  @media print {
+    body { padding: 0; max-width: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="banner">
+    <div class="title">${escHtml(sheet.title || 'Logit sheet')}</div>
+    <div class="driver">${sheet.driver ? `Driver: ${escHtml(sheet.driver)}` : ''}</div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Load</th>
+        <th>Chassis</th>
+        <th>Pick up</th>
+        <th>Drop off</th>
+        ${showMiles ? '<th>Miles</th>' : ''}
+        ${showHours ? '<th>Hours</th>' : ''}
+        <th>Price</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${bodyRows.join('\n') || `<tr><td colspan="${colCount}">No loads</td></tr>`}
+    </tbody>
+  </table>
+  <div class="summary">
+    ${summaryLines.join('\n')}
+    <div class="pay"><span>Pay</span><span>${escHtml(money(totals.net))}</span></div>
+  </div>
+  <p class="foot">Printed from Logit</p>
+  <script>window.onload = function () { window.focus(); window.print(); }</script>
+</body>
+</html>`)
     w.document.close()
   }
 
@@ -143,92 +313,67 @@ export default function ShareModal({ sheet, rows, extras, deductions, totals, on
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal share-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h2>Send sheet</h2>
+          <h2>Send / print</h2>
           <button className="row-delete" aria-label="Close" onClick={onClose}>
             ✕
           </button>
         </div>
 
         <p className="muted share-hint">
-          Preview of what the other person will read. Empty fields are left out so it stays clear.
+          Spreadsheet layout — long ways, with lines — easy for a boss to read and keep.
         </p>
 
-        <div className="share-preview-card">
-          <header className="share-doc-head">
-            <h3>{sheet.title || 'Logit sheet'}</h3>
-            {sheet.driver && <p className="share-doc-sub">Driver: {sheet.driver}</p>}
-          </header>
+        <div className="share-preview-card share-sheet-wrap">
+          <div className="share-banner">
+            <div className="share-banner-title">{sheet.title || 'Logit sheet'}</div>
+            <div className="share-banner-driver">{sheet.driver ? `Driver: ${sheet.driver}` : ''}</div>
+          </div>
 
-          <h4 className="share-section-label">Loads</h4>
+          <div className="share-table-scroll">
+            <table className="share-sheet">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Load</th>
+                  <th>Chassis</th>
+                  <th>Pick up</th>
+                  <th>Drop off</th>
+                  {showMiles && <th>Miles</th>}
+                  {showHours && <th>Hours</th>}
+                  <th>Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => {
+                  if (r.kind === 'divider') {
+                    return (
+                      <tr key={r.id} className="share-sheet-week">
+                        <td colSpan={colCount}>
+                          <span>{r.date || 'Week'}</span>
+                          <strong>{money(weekTotals.get(r.id) ?? 0)}</strong>
+                        </td>
+                      </tr>
+                    )
+                  }
+                  if (!rowHasContent(r)) return null
+                  return (
+                    <tr key={r.id}>
+                      <td className="date">{displayDates.get(r.id) ?? ''}</td>
+                      <td className="mono">{r.container}</td>
+                      <td className="mono">{r.chassis}</td>
+                      <td>{r.from}</td>
+                      <td>{r.to}</td>
+                      {showMiles && <td className="num">{r.miles != null ? r.miles : ''}</td>}
+                      {showHours && <td className="num">{r.hours != null ? r.hours : ''}</td>}
+                      <td className="num">{r.rate != null ? money(r.rate) : ''}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
 
-          {rows.map((r) => {
-            if (r.kind === 'divider') {
-              return (
-                <div key={r.id} className="share-week">
-                  <span>{r.date || 'Week'}</span>
-                  <strong>{money(weekTotals.get(r.id) ?? 0)}</strong>
-                </div>
-              )
-            }
-            const n = loadNumbers.get(r.id)
-            if (n == null) return null
-            return (
-              <article key={r.id} className="share-load">
-                <strong>
-                  {n}. {r.date || 'No date'}
-                </strong>
-                {r.container && (
-                  <div className="share-field">
-                    <span>Container</span>
-                    <span className="mono">{r.container}</span>
-                  </div>
-                )}
-                {r.chassis && (
-                  <div className="share-field">
-                    <span>Chassis</span>
-                    <span className="mono">{r.chassis}</span>
-                  </div>
-                )}
-                {(r.from || r.to) && (
-                  <div className="share-field">
-                    <span>Route</span>
-                    <span>
-                      {r.from || '—'} → {r.to || '—'}
-                    </span>
-                  </div>
-                )}
-                {r.miles != null && (
-                  <div className="share-field">
-                    <span>Miles</span>
-                    <span>{r.miles.toLocaleString()}</span>
-                  </div>
-                )}
-                {r.hours != null && (
-                  <div className="share-field">
-                    <span>Hours</span>
-                    <span>{r.hours.toLocaleString()}</span>
-                  </div>
-                )}
-                {(r.rate != null || payType === 'percent') && (
-                  <div className="share-field">
-                    <span>Rate</span>
-                    <span>{r.rate != null ? money(r.rate) : '—'}</span>
-                  </div>
-                )}
-                {r.notes && (
-                  <div className="share-field">
-                    <span>Notes</span>
-                    <span>{r.notes}</span>
-                  </div>
-                )}
-              </article>
-            )
-          })}
-
-          {loadNumbers.size === 0 && <p className="muted">No loads yet.</p>}
-
-          <h4 className="share-section-label">Summary</h4>
-          <div className="share-summary">
+          <div className="share-summary sheet-summary">
             {payType === 'mile' && (
               <div className="share-sum-line">
                 <span>
@@ -281,7 +426,10 @@ export default function ShareModal({ sheet, rows, extras, deductions, totals, on
         </div>
 
         <div className="share-actions">
-          <button className="btn primary big" onClick={handleShareText}>
+          <button className="btn primary big" onClick={handlePrint}>
+            Print / Save as PDF
+          </button>
+          <button className="btn big" onClick={handleShareText}>
             {canSystemShare ? 'Send… (SMS, email, WhatsApp)' : 'Copy summary'}
           </button>
           <div className="btn-row">
@@ -291,16 +439,10 @@ export default function ShareModal({ sheet, rows, extras, deductions, totals, on
             <a className="btn" href={mailtoLink(sheet, text)}>
               Email
             </a>
-            <button className="btn" onClick={handlePrint}>
-              Print
+            <button className="btn" onClick={handleShareCsv}>
+              Spreadsheet (CSV)
             </button>
           </div>
-          <button className="btn big" onClick={handleShareCsv}>
-            Send as spreadsheet file (CSV)
-          </button>
-          <button className="btn" onClick={() => downloadCsv(sheet, csv)}>
-            Save CSV
-          </button>
         </div>
 
         {status && <p className="muted share-status">{status}</p>}

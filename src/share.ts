@@ -11,8 +11,6 @@ export interface SheetTotals {
   net: number
 }
 
-const RULE = '────────────────────────'
-
 function rowHasContent(r: LoadRow): boolean {
   return !!(
     r.date ||
@@ -27,20 +25,12 @@ function rowHasContent(r: LoadRow): boolean {
   )
 }
 
-function formatLoadBlock(r: LoadRow, index: number, payType: PayType): string {
-  const lines: string[] = [`${index}.  ${r.date || 'No date'}`]
-  if (r.container) lines.push(`    Container:  ${r.container}`)
-  if (r.chassis) lines.push(`    Chassis:    ${r.chassis}`)
-  if (r.from || r.to) lines.push(`    Route:      ${r.from || '—'} → ${r.to || '—'}`)
-  if (r.miles != null) lines.push(`    Miles:      ${r.miles.toLocaleString()}`)
-  if (r.hours != null) lines.push(`    Hours:      ${r.hours.toLocaleString()}`)
-  if (r.rate != null) lines.push(`    Rate:       ${money(r.rate)}`)
-  else if (payType === 'percent') lines.push(`    Rate:       —`)
-  if (r.notes) lines.push(`    Notes:      ${r.notes}`)
-  return lines.join('\n')
+function pad(s: string, n: number): string {
+  const t = s.length > n ? s.slice(0, n) : s
+  return t.padEnd(n)
 }
 
-/** Human-readable summary for SMS / WhatsApp / email / print. */
+/** Spreadsheet-style text for SMS / WhatsApp / email (matches print columns). */
 export function buildSheetText(
   sheet: Sheet,
   rows: LoadRow[],
@@ -50,72 +40,77 @@ export function buildSheetText(
 ): string {
   const payType: PayType = sheet.payType ?? 'percent'
   const payRate = sheet.payRate ?? 0
+  const showMiles = payType === 'mile' || !!sheet.showMiles
+  const showHours = payType === 'hour'
   const weekTotals = computeWeekTotals(sheet, rows)
   const lines: string[] = []
 
   lines.push(sheet.title || 'Logit sheet')
   if (sheet.driver) lines.push(`Driver: ${sheet.driver}`)
   lines.push('')
-  lines.push(RULE)
-  lines.push('LOADS')
-  lines.push(RULE)
-  lines.push('')
 
-  let loadNum = 0
-  let wroteAnyLoad = false
+  // Header row — same columns as the print sheet
+  let header = `${pad('Date', 7)}${pad('Load', 12)}${pad('Chassis', 12)}${pad('Pick up', 9)}${pad('Drop off', 9)}`
+  if (showMiles) header += pad('Miles', 7)
+  if (showHours) header += pad('Hours', 7)
+  header += 'Price'
+  lines.push(header)
+  lines.push('-'.repeat(Math.min(header.length, 56)))
+
+  let lastDate = ''
+  let wroteAny = false
   for (const r of rows) {
     if (r.kind === 'divider') {
       lines.push('')
-      lines.push(`▸ ${r.date || 'Week'}  ·  ${money(weekTotals.get(r.id) ?? 0)}`)
-      lines.push('')
+      lines.push(`>> ${r.date || 'Week'}  ${money(weekTotals.get(r.id) ?? 0)}`)
+      lines.push('-'.repeat(40))
+      lastDate = ''
       continue
     }
     if (!rowHasContent(r)) continue
-    loadNum += 1
-    wroteAnyLoad = true
-    lines.push(formatLoadBlock(r, loadNum, payType))
-    lines.push('')
+    wroteAny = true
+    const date = r.date.trim() && r.date.trim() !== lastDate ? r.date.trim() : ''
+    if (r.date.trim()) lastDate = r.date.trim()
+
+    let row = `${pad(date, 7)}${pad(r.container, 12)}${pad(r.chassis, 12)}${pad(r.from, 9)}${pad(r.to, 9)}`
+    if (showMiles) row += pad(r.miles != null ? String(r.miles) : '', 7)
+    if (showHours) row += pad(r.hours != null ? String(r.hours) : '', 7)
+    row += r.rate != null ? money(r.rate) : ''
+    lines.push(row)
+    if (r.notes) lines.push(`       note: ${r.notes}`)
   }
 
-  if (!wroteAnyLoad) {
-    lines.push('(No loads yet)')
-    lines.push('')
-  }
+  if (!wroteAny) lines.push('(No loads yet)')
 
-  lines.push(RULE)
+  lines.push('')
   lines.push('SUMMARY')
-  lines.push(RULE)
+  lines.push('-'.repeat(24))
 
   if (payType === 'mile') {
     lines.push(
-      `Miles:          ${totals.totalMiles.toLocaleString()} × ${money(payRate)}/mi = ${money(totals.totalMiles * payRate)}`,
+      `Miles: ${totals.totalMiles.toLocaleString()} x ${money(payRate)}/mi = ${money(totals.totalMiles * payRate)}`,
     )
-    if (totals.gross !== 0) lines.push(`Loads total:    ${money(totals.gross)}`)
+    if (totals.gross !== 0) lines.push(`Loads total: ${money(totals.gross)}`)
   } else if (payType === 'hour') {
     lines.push(
-      `Hours:          ${totals.totalHours.toLocaleString()} × ${money(payRate)}/hr = ${money(totals.totalHours * payRate)}`,
+      `Hours: ${totals.totalHours.toLocaleString()} x ${money(payRate)}/hr = ${money(totals.totalHours * payRate)}`,
     )
-    if (totals.gross !== 0) lines.push(`Loads total:    ${money(totals.gross)}`)
+    if (totals.gross !== 0) lines.push(`Loads total: ${money(totals.gross)}`)
   } else {
-    lines.push(`Loads total:    ${money(totals.gross)}`)
+    lines.push(`Loads total: ${money(totals.gross)}`)
     if (normalizePercent(sheet.percent) !== 100) {
-      lines.push(
-        `Driver cut:     ${normalizePercent(sheet.percent)}% = ${money(totals.driverShare)}`,
-      )
+      lines.push(`Driver cut ${normalizePercent(sheet.percent)}%: ${money(totals.driverShare)}`)
     }
   }
-
   for (const x of extras) {
     if (!x.amount && !x.label) continue
-    lines.push(`+ ${x.label || 'Extra'}:   +${money(x.amount)}`)
+    lines.push(`+ ${x.label || 'Extra'}: +${money(x.amount)}`)
   }
   for (const d of deductions) {
     if (!d.amount && !d.label) continue
-    lines.push(`− ${d.label || 'Deduction'}:   −${money(d.amount)}`)
+    lines.push(`- ${d.label || 'Deduction'}: -${money(d.amount)}`)
   }
-
-  lines.push('')
-  lines.push(`PAY:            ${money(totals.net)}`)
+  lines.push(`PAY: ${money(totals.net)}`)
   lines.push('')
   lines.push('Sent from Logit')
 
