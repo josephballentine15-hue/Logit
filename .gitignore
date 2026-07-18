@@ -25,3 +25,16 @@ eng.traineddata
 *.njsproj
 *.sln
 *.sw?
+
+# Native build outputs (keep android/ and ios/ project folders)
+android/.gradle
+android/app/build
+android/build
+android/captures
+android/local.properties
+*.iml
+ios/App/Pods
+ios/App/build
+ios/DerivedData
+*.keystore
+!debug.keystore
