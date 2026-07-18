@@ -20,7 +20,8 @@ export default function ScanModal({ onClose, onAddRows }: Props) {
   const [emailText, setEmailText] = useState('')
   const [spoken, setSpoken] = useState('')
   const [listening, setListening] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
+  const galleryRef = useRef<HTMLInputElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recRef = useRef<any>(null)
 
@@ -119,14 +120,17 @@ export default function ScanModal({ onClose, onAddRows }: Props) {
         {stage === 'pick' && (
           <div className="scan-pick">
             <p className="muted">
-              Take a photo of your paper log sheet. Logit will read the container, chassis, dates
-              and rates — you can fix anything before adding.
+              Photo of your paper log sheet — Logit reads container, chassis, dates and rates. You
+              can fix anything before adding.
             </p>
-            <button className="btn primary big" onClick={() => fileRef.current?.click()}>
-              📷 Take / choose photo
+            <button className="btn primary big" onClick={() => cameraRef.current?.click()}>
+              📷 Take photo
+            </button>
+            <button className="btn big" onClick={() => galleryRef.current?.click()}>
+              🖼 Choose from photos
             </button>
             <input
-              ref={fileRef}
+              ref={cameraRef}
               type="file"
               accept="image/*"
               capture="environment"
@@ -134,6 +138,18 @@ export default function ScanModal({ onClose, onAddRows }: Props) {
               onChange={(e) => {
                 const f = e.target.files?.[0]
                 if (f) handleFile(f)
+                e.target.value = ''
+              }}
+            />
+            <input
+              ref={galleryRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) handleFile(f)
+                e.target.value = ''
               }}
             />
 

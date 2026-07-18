@@ -398,6 +398,54 @@ table.loads td input:focus {
   width: 34px;
 }
 
+.id-cell {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.id-cell input {
+  flex: 1;
+  min-width: 0;
+}
+
+.id-scan-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--text);
+  padding: 0 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.id-scan-btn:active {
+  background: var(--bg-input);
+}
+
+.save-toast {
+  margin: -4px 0 0;
+  padding: 8px 12px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.id-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 16px;
+}
+
 .mono {
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   font-size: 14px;

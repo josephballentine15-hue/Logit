@@ -269,6 +269,25 @@ export function parseSpokenText(raw: string): ParsedRow {
   }
 }
 
+/** Pull equipment IDs (EMHU650693, TSFZ567142…) out of OCR text from a truck plate. */
+export function extractEquipmentIds(text: string): string[] {
+  const ids: string[] = []
+  const upper = text.toUpperCase()
+  for (const m of upper.matchAll(ID_RE)) {
+    const digits = fixDigits(m[2])
+    if ((m[2].match(/[0-9]/g)?.length ?? 0) >= 3) {
+      const id = m[1] + digits
+      if (!ids.includes(id)) ids.push(id)
+    }
+  }
+  // Also catch space-split plates like "EMHU 650 693"
+  for (const m of upper.matchAll(EMAIL_ID_RE)) {
+    const id = m[1] + m[2].replace(/[^0-9]/g, '')
+    if (id.length >= 10 && !ids.includes(id)) ids.push(id)
+  }
+  return ids
+}
+
 /**
  * Pull load rows out of raw OCR text. Dates carry forward across lines the
  * way they do on paper sheets (one date written for a group of loads).

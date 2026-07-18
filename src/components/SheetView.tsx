@@ -1,10 +1,13 @@
 import { useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, uid, addEmptyRow, addWeekDivider } from '../db'
+import { flushAllInputs } from '../flush'
 import { money, normalizePercent, parseMoneyInput } from '../format'
 import { parseSpokenAdjustment } from '../ocr'
 import { SpeechRec, explainSpeechError } from '../speech'
 import type { LoadRow, ParsedRow, PayType, Sheet } from '../types'
+import CellInput from './CellInput'
+import IdScanModal, { type IdField } from './IdScanModal'
 import ScanModal from './ScanModal'
 import SettingsModal from './SettingsModal'
 import ShareModal from './ShareModal'
@@ -22,6 +25,19 @@ export default function SheetView({ sheetId, onBack }: Props) {
   const [scanning, setScanning] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [saveMsg, setSaveMsg] = useState('')
+  const [idScan, setIdScan] = useState<null | { field: IdField; rowId?: string }>(null)
+
+  function handleSave() {
+    flushAllInputs()
+    setSaveMsg('Saved on this phone')
+    window.setTimeout(() => setSaveMsg(''), 2000)
+  }
+
+  function handleBack() {
+    flushAllInputs()
+    onBack()
+  }
 
   const sheet = useLiveQuery(() => db.sheets.get(sheetId), [sheetId])
   const rows = useLiveQuery(
@@ -114,7 +130,7 @@ export default function SheetView({ sheetId, onBack }: Props) {
   return (
     <div className="page">
       <header className="topbar">
-        <button className="btn small" onClick={onBack}>
+        <button className="btn small" onClick={handleBack}>
           ← Sheets
         </button>
         <div className="topbar-title">
@@ -140,11 +156,17 @@ export default function SheetView({ sheetId, onBack }: Props) {
         <button className="btn primary" onClick={() => setScanning(true)}>
           + Add load (photo / email)
         </button>
+        <button className="btn" onClick={() => setIdScan({ field: 'both' })}>
+          📷 Scan ID
+        </button>
         <button className="btn" onClick={() => addEmptyRow(sheetId, nextOrder)}>
           + Add row
         </button>
         <button className="btn" onClick={() => addWeekDivider(sheetId, nextOrder)}>
           + Week
+        </button>
+        <button className="btn primary" onClick={handleSave}>
+          Save
         </button>
         <button className="btn" onClick={() => setSharing(true)}>
           Send
@@ -153,6 +175,7 @@ export default function SheetView({ sheetId, onBack }: Props) {
           ⚙
         </button>
       </div>
+      {saveMsg && <p className="save-toast">{saveMsg}</p>}
 
       <div className="table-wrap">
         <table className="loads">
@@ -180,7 +203,12 @@ export default function SheetView({ sheetId, onBack }: Props) {
                   colCount={colCount}
                 />
               ) : (
-                <RowEditor key={row.id} row={row} cols={cols} />
+                <RowEditor
+                  key={row.id}
+                  row={row}
+                  cols={cols}
+                  onScanId={(field) => setIdScan({ field, rowId: row.id })}
+                />
               ),
             )}
             {rows.length === 0 && (
@@ -229,6 +257,34 @@ export default function SheetView({ sheetId, onBack }: Props) {
       )}
 
       {settingsOpen && <SettingsModal sheet={sheet} onClose={() => setSettingsOpen(false)} />}
+
+      {idScan && (
+        <IdScanModal
+          field={idScan.field}
+          onClose={() => setIdScan(null)}
+          onResult={async (result) => {
+            const targetId = idScan.rowId
+            setIdScan(null)
+            if (targetId) {
+              await db.rows.update(targetId, result)
+              return
+            }
+            // New load from truck plate scan
+            await db.rows.add({
+              id: uid(),
+              sheetId,
+              order: nextOrder,
+              date: '',
+              container: result.container ?? '',
+              chassis: result.chassis ?? '',
+              from: '',
+              to: '',
+              rate: null,
+              notes: '',
+            })
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -277,7 +333,15 @@ function DividerRow({
   )
 }
 
-function RowEditor({ row, cols }: { row: LoadRow; cols: ColFlags }) {
+function RowEditor({
+  row,
+  cols,
+  onScanId,
+}: {
+  row: LoadRow
+  cols: ColFlags
+  onScanId: (field: 'container' | 'chassis') => void
+}) {
   const update = (patch: Partial<LoadRow>) => db.rows.update(row.id, patch)
   return (
     <tr>
@@ -286,20 +350,42 @@ function RowEditor({ row, cols }: { row: LoadRow; cols: ColFlags }) {
       </td>
       {cols.container && (
         <td>
-          <CellInput
-            value={row.container}
-            className="mono"
-            onCommit={(v) => update({ container: v.toUpperCase() })}
-          />
+          <div className="id-cell">
+            <CellInput
+              value={row.container}
+              className="mono"
+              onCommit={(v) => update({ container: v.toUpperCase() })}
+            />
+            <button
+              type="button"
+              className="id-scan-btn"
+              aria-label="Scan container from truck"
+              title="Scan container from truck"
+              onClick={() => onScanId('container')}
+            >
+              📷
+            </button>
+          </div>
         </td>
       )}
       {cols.chassis && (
         <td>
-          <CellInput
-            value={row.chassis}
-            className="mono"
-            onCommit={(v) => update({ chassis: v.toUpperCase() })}
-          />
+          <div className="id-cell">
+            <CellInput
+              value={row.chassis}
+              className="mono"
+              onCommit={(v) => update({ chassis: v.toUpperCase() })}
+            />
+            <button
+              type="button"
+              className="id-scan-btn"
+              aria-label="Scan chassis from truck"
+              title="Scan chassis from truck"
+              onClick={() => onScanId('chassis')}
+            >
+              📷
+            </button>
+          </div>
         </td>
       )}
       {cols.from && (
@@ -627,32 +713,3 @@ function SpeakAdjustment({ sheetId }: { sheetId: string }) {
   )
 }
 
-interface CellProps {
-  value: string
-  onCommit: (value: string) => void
-  className?: string
-  placeholder?: string
-  inputMode?: 'decimal'
-}
-
-/**
- * Uncontrolled input that writes to the database on blur/Enter, so typing
- * never fights with live-query re-renders.
- */
-function CellInput({ value, onCommit, className, placeholder, inputMode }: CellProps) {
-  return (
-    <input
-      key={value}
-      defaultValue={value}
-      className={className}
-      placeholder={placeholder}
-      inputMode={inputMode}
-      onBlur={(e) => {
-        if (e.target.value !== value) onCommit(e.target.value)
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-      }}
-    />
-  )
-}
