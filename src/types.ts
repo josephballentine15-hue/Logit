@@ -8,6 +8,8 @@ export interface Sheet {
   id: string
   title: string
   driver: string
+  /** Company / carrier name shown on send & print */
+  company?: string
   /** Driver's percentage of the gross, e.g. 40 */
   percent: number
   /** Defaults to 'percent' when missing (older sheets) */
@@ -39,6 +41,8 @@ export interface LoadRow {
   miles?: number | null
   hours?: number | null
   notes: string
+  /** Marked important — shows highlighted on edit, send, and print */
+  highlighted?: boolean
 }
 
 export interface Deduction {

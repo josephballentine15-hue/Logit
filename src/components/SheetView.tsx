@@ -140,6 +140,18 @@ export default function SheetView({ sheetId, onBack }: Props) {
             onCommit={(v) => db.sheets.update(sheetId, { title: v })}
           />
           <div className="driver-line">
+            <span className="muted">Company:</span>
+            <CellInput
+              className="driver-input"
+              value={sheet.company ?? ''}
+              placeholder="company name"
+              onCommit={(v) => {
+                localStorage.setItem('logit:company', v)
+                db.sheets.update(sheetId, { company: v })
+              }}
+            />
+          </div>
+          <div className="driver-line">
             <span className="muted">Driver:</span>
             <CellInput
               className="driver-input"
@@ -344,7 +356,7 @@ function RowEditor({
 }) {
   const update = (patch: Partial<LoadRow>) => db.rows.update(row.id, patch)
   return (
-    <tr>
+    <tr className={row.highlighted ? 'row-highlighted' : undefined}>
       <td>
         <CellInput value={row.date} placeholder="6/22" onCommit={(v) => update({ date: v })} />
       </td>
@@ -437,13 +449,24 @@ function RowEditor({
         </td>
       )}
       <td>
-        <button
-          className="row-delete"
-          aria-label="Delete row"
-          onClick={() => db.rows.delete(row.id)}
-        >
-          ✕
-        </button>
+        <div className="row-actions">
+          <button
+            type="button"
+            className={`row-highlight ${row.highlighted ? 'on' : ''}`}
+            aria-label={row.highlighted ? 'Remove highlight' : 'Highlight load'}
+            title={row.highlighted ? 'Remove highlight' : 'Highlight important'}
+            onClick={() => update({ highlighted: !row.highlighted })}
+          >
+            ✦
+          </button>
+          <button
+            className="row-delete"
+            aria-label="Delete row"
+            onClick={() => db.rows.delete(row.id)}
+          >
+            ✕
+          </button>
+        </div>
       </td>
     </tr>
   )

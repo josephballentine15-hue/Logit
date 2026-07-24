@@ -45,7 +45,8 @@ export function buildSheetText(
   const weekTotals = computeWeekTotals(sheet, rows)
   const lines: string[] = []
 
-  lines.push(sheet.title || 'Logit sheet')
+  lines.push(sheet.company?.trim() || sheet.title || 'Logit sheet')
+  if (sheet.company?.trim() && sheet.title?.trim()) lines.push(sheet.title)
   if (sheet.driver) lines.push(`Driver: ${sheet.driver}`)
   lines.push('')
 
@@ -77,6 +78,7 @@ export function buildSheetText(
     if (showMiles) row += pad(r.miles != null ? String(r.miles) : '', 7)
     if (showHours) row += pad(r.hours != null ? String(r.hours) : '', 7)
     row += r.rate != null ? money(r.rate) : ''
+    if (r.highlighted) row += '  ★'
     lines.push(row)
     if (r.notes) lines.push(`       note: ${r.notes}`)
   }

@@ -144,7 +144,8 @@ export default function ShareModal({ sheet, rows, extras, deductions, totals, on
       }
       if (!rowHasContent(r)) continue
       const dayStart = !!(displayDates.get(r.id) ?? '')
-      bodyRows.push(`<tr class="${dayStart ? 'day-start' : 'load'}">
+      const hl = r.highlighted ? ' highlighted' : ''
+      bodyRows.push(`<tr class="${dayStart ? 'day-start' : 'load'}${hl}">
         <td class="date">${escHtml(displayDates.get(r.id) ?? '')}</td>
         <td class="mono">${escHtml(r.container)}</td>
         <td class="mono">${escHtml(r.chassis)}</td>
@@ -224,6 +225,7 @@ export default function ShareModal({ sheet, rows, extras, deductions, totals, on
   .banner div { padding: 8px 10px; }
   .banner .title { background: #f8d7da; font-weight: 700; border-right: 1px solid #999; }
   .banner .driver { background: #fff; }
+  .sheet-sub { margin: 0 0 10px; color: #555; font-size: 12px; }
   table {
     width: 100%;
     border-collapse: collapse;
@@ -252,6 +254,11 @@ export default function ShareModal({ sheet, rows, extras, deductions, totals, on
     background: #fafafa;
   }
   tr.day-start td.date { background: #eef2ff; }
+  tr.highlighted td,
+  tr.day-start.highlighted td {
+    background: #fff3a0 !important;
+  }
+  tr.highlighted td.date { background: #ffe566 !important; font-weight: 700; }
   tr.week td {
     background: #dbeafe;
     font-weight: 700;
@@ -287,9 +294,14 @@ export default function ShareModal({ sheet, rows, extras, deductions, totals, on
 </head>
 <body>
   <div class="banner">
-    <div class="title">${escHtml(sheet.title || 'Logit sheet')}</div>
+    <div class="title">${escHtml(sheet.company?.trim() || sheet.title || 'Logit sheet')}</div>
     <div class="driver">${sheet.driver ? `Driver: ${escHtml(sheet.driver)}` : ''}</div>
   </div>
+  ${
+    sheet.company?.trim() && sheet.title?.trim()
+      ? `<p class="sheet-sub">${escHtml(sheet.title)}</p>`
+      : ''
+  }
   <table>
     <thead>
       <tr>
@@ -334,9 +346,16 @@ export default function ShareModal({ sheet, rows, extras, deductions, totals, on
 
         <div className="share-preview-card share-sheet-wrap">
           <div className="share-banner">
-            <div className="share-banner-title">{sheet.title || 'Logit sheet'}</div>
-            <div className="share-banner-driver">{sheet.driver ? `Driver: ${sheet.driver}` : ''}</div>
+            <div className="share-banner-title">
+              {sheet.company?.trim() || sheet.title || 'Logit sheet'}
+            </div>
+            <div className="share-banner-driver">
+              {sheet.driver ? `Driver: ${sheet.driver}` : ''}
+            </div>
           </div>
+          {sheet.company?.trim() && sheet.title?.trim() && (
+            <p className="share-sheet-sub">{sheet.title}</p>
+          )}
 
           <div className="share-table-scroll">
             <table className="share-sheet">
@@ -367,7 +386,12 @@ export default function ShareModal({ sheet, rows, extras, deductions, totals, on
                   if (!rowHasContent(r)) return null
                   const dayStart = !!(displayDates.get(r.id) ?? '')
                   return (
-                    <tr key={r.id} className={dayStart ? 'day-start' : 'load'}>
+                    <tr
+                      key={r.id}
+                      className={[dayStart ? 'day-start' : 'load', r.highlighted ? 'highlighted' : '']
+                        .filter(Boolean)
+                        .join(' ')}
+                    >
                       <td className="date">{displayDates.get(r.id) ?? ''}</td>
                       <td className="mono">{r.container}</td>
                       <td className="mono">{r.chassis}</td>

@@ -33,6 +33,7 @@ export async function createSheet(title: string, driver: string): Promise<string
     id,
     title,
     driver,
+    company: prev?.company ?? localStorage.getItem('logit:company') ?? '',
     percent: prev?.percent ?? 100,
     payType: prev?.payType,
     payRate: prev?.payRate,
