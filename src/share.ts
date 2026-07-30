@@ -45,8 +45,12 @@ export function buildSheetText(
   const weekTotals = computeWeekTotals(sheet, rows)
   const lines: string[] = []
 
-  lines.push(sheet.company?.trim() || sheet.title || 'Logit sheet')
-  if (sheet.company?.trim() && sheet.title?.trim()) lines.push(sheet.title)
+  if (sheet.company?.trim()) {
+    lines.push(`Company: ${sheet.company.trim()}`)
+    if (sheet.title?.trim()) lines.push(sheet.title)
+  } else {
+    lines.push(sheet.title || 'Logit sheet')
+  }
   if (sheet.driver) lines.push(`Driver: ${sheet.driver}`)
   lines.push('')
 
@@ -162,7 +166,10 @@ export function buildCsv(
 
   // Same banner info as print: company, driver, sheet title above the table
   const top: string[] = []
-  top.push(`${esc(sheet.company?.trim() || sheet.title || 'Logit sheet')},${esc(sheet.driver ? `Driver: ${sheet.driver}` : '')}`)
+  const companyCell = sheet.company?.trim()
+    ? `Company: ${sheet.company.trim()}`
+    : sheet.title || 'Logit sheet'
+  top.push(`${esc(companyCell)},${esc(sheet.driver ? `Driver: ${sheet.driver}` : '')}`)
   if (sheet.company?.trim() && sheet.title?.trim()) {
     top.push(esc(sheet.title))
   }

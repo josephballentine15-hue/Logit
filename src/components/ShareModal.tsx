@@ -294,7 +294,11 @@ export default function ShareModal({ sheet, rows, extras, deductions, totals, on
 </head>
 <body>
   <div class="banner">
-    <div class="title">${escHtml(sheet.company?.trim() || sheet.title || 'Logit sheet')}</div>
+    <div class="title">${escHtml(
+      sheet.company?.trim()
+        ? `Company: ${sheet.company.trim()}`
+        : sheet.title || 'Logit sheet',
+    )}</div>
     <div class="driver">${sheet.driver ? `Driver: ${escHtml(sheet.driver)}` : ''}</div>
   </div>
   ${
@@ -347,7 +351,9 @@ export default function ShareModal({ sheet, rows, extras, deductions, totals, on
         <div className="share-preview-card share-sheet-wrap">
           <div className="share-banner">
             <div className="share-banner-title">
-              {sheet.company?.trim() || sheet.title || 'Logit sheet'}
+              {sheet.company?.trim()
+                ? `Company: ${sheet.company.trim()}`
+                : sheet.title || 'Logit sheet'}
             </div>
             <div className="share-banner-driver">
               {sheet.driver ? `Driver: ${sheet.driver}` : ''}
