@@ -137,11 +137,11 @@ export function buildCsv(
   const labelCols: { header: string; get: (r: LoadRow) => string }[] = [
     { header: 'Date', get: (r) => r.date },
     ...(!hidden.includes('container')
-      ? [{ header: 'Container/Trailer', get: (r: LoadRow) => r.container }]
+      ? [{ header: 'Load', get: (r: LoadRow) => r.container }]
       : []),
     ...(!hidden.includes('chassis') ? [{ header: 'Chassis', get: (r: LoadRow) => r.chassis }] : []),
-    ...(!hidden.includes('from') ? [{ header: 'From', get: (r: LoadRow) => r.from }] : []),
-    ...(!hidden.includes('to') ? [{ header: 'To', get: (r: LoadRow) => r.to }] : []),
+    ...(!hidden.includes('from') ? [{ header: 'Pick up', get: (r: LoadRow) => r.from }] : []),
+    ...(!hidden.includes('to') ? [{ header: 'Drop off', get: (r: LoadRow) => r.to }] : []),
     ...(showMiles
       ? [{ header: 'Miles', get: (r: LoadRow) => (r.miles != null ? String(r.miles) : '') }]
       : []),
@@ -150,13 +150,23 @@ export function buildCsv(
       : []),
   ]
   const includeNotes = !hidden.includes('notes')
-  const header = [
+  const colHeader = [
     ...labelCols.map((c) => c.header),
-    'Rate',
+    'Price',
     ...(includeNotes ? ['Notes'] : []),
+    'Highlight',
   ].join(',')
+  // Amounts line up under the Price column
   const pad = ','.repeat(Math.max(labelCols.length - 1, 0))
-  const tail = includeNotes ? ',' : ''
+  const tail = includeNotes ? ',,' : ','
+
+  // Same banner info as print: company, driver, sheet title above the table
+  const top: string[] = []
+  top.push(`${esc(sheet.company?.trim() || sheet.title || 'Logit sheet')},${esc(sheet.driver ? `Driver: ${sheet.driver}` : '')}`)
+  if (sheet.company?.trim() && sheet.title?.trim()) {
+    top.push(esc(sheet.title))
+  }
+  top.push('') // blank row before column headers
 
   const weekTotals = computeWeekTotals(sheet, rows)
   const lines = rows.map((r) => {
@@ -166,12 +176,14 @@ export function buildCsv(
         ...Array(Math.max(labelCols.length - 1, 0)).fill(''),
         (weekTotals.get(r.id) ?? 0).toFixed(2),
         ...(includeNotes ? [''] : []),
+        '',
       ].join(',')
     }
     return [
       ...labelCols.map((c) => esc(c.get(r))),
       r.rate != null ? String(r.rate) : '',
       ...(includeNotes ? [esc(r.notes)] : []),
+      r.highlighted ? 'YES' : '',
     ].join(',')
   })
 
@@ -199,7 +211,7 @@ export function buildCsv(
     ...deductions.map((d) => `Deduction: ${esc(d.label)},${pad}-${d.amount.toFixed(2)}${tail}`),
     `Pay,${pad}${totals.net.toFixed(2)}${tail}`,
   )
-  return [header, ...lines, ...summary].join('\n')
+  return [...top, colHeader, ...lines, ...summary].join('\n')
 }
 
 function computeWeekTotals(sheet: Sheet, rows: LoadRow[]): Map<string, number> {
