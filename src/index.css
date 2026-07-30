@@ -44,6 +44,25 @@ body {
   min-height: 100dvh;
 }
 
+.update-banner {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.update-banner .btn {
+  flex-shrink: 0;
+}
+
 .page {
   max-width: 960px;
   margin: 0 auto;
