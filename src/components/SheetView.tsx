@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, uid, addEmptyRow, addWeekDivider } from '../db'
+import { db, uid, addEmptyRow, addWeekDivider, moveRowRelative } from '../db'
 import { flushAllInputs } from '../flush'
 import { money, normalizePercent, parseMoneyInput } from '../format'
 import { parseSpokenAdjustment } from '../ocr'
@@ -27,6 +27,11 @@ export default function SheetView({ sheetId, onBack }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
   const [idScan, setIdScan] = useState<null | { field: IdField; rowId?: string }>(null)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [overId, setOverId] = useState<string | null>(null)
+  const dragIdRef = useRef<string | null>(null)
+  const overIdRef = useRef<string | null>(null)
+  const rowsRef = useRef<LoadRow[]>([])
 
   function handleSave() {
     flushAllInputs()
@@ -52,6 +57,58 @@ export default function SheetView({ sheetId, onBack }: Props) {
     () => db.extras.where('sheetId').equals(sheetId).toArray(),
     [sheetId],
   )
+
+  useEffect(() => {
+    if (rows) rowsRef.current = rows
+  }, [rows])
+
+  useEffect(() => {
+    if (!draggingId) return
+    function onMove(e: PointerEvent) {
+      const el = document.elementFromPoint(e.clientX, e.clientY)
+      const tr = el?.closest('tr[data-row-id]') as HTMLElement | null
+      const id = tr?.dataset.rowId ?? null
+      if (id && id !== dragIdRef.current) {
+        overIdRef.current = id
+        setOverId(id)
+      }
+    }
+    async function onUp() {
+      const from = dragIdRef.current
+      const to = overIdRef.current
+      const current = rowsRef.current
+      dragIdRef.current = null
+      overIdRef.current = null
+      setDraggingId(null)
+      setOverId(null)
+      if (!from || !to || from === to) return
+      const target = current.find((r) => r.id === to)
+      // Drop on a week header → put the row into that week (right under it)
+      const place = target?.kind === 'divider' ? 'after' : 'before'
+      await moveRowRelative(
+        current.map((r) => r.id),
+        from,
+        to,
+        place,
+      )
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+  }, [draggingId])
+
+  function startDrag(id: string) {
+    flushAllInputs()
+    dragIdRef.current = id
+    overIdRef.current = null
+    setDraggingId(id)
+    setOverId(null)
+  }
 
   if (!sheet || !rows || !deductions || !extras) return null
 
@@ -84,7 +141,8 @@ export default function SheetView({ sheetId, onBack }: Props) {
     rate: payType === 'percent' || !hidden.includes('rate'),
     notes: !hidden.includes('notes'),
   }
-  const colCount = 2 + Object.values(cols).filter(Boolean).length
+  // drag handle + date + visible data cols + actions
+  const colCount = 3 + Object.values(cols).filter(Boolean).length
 
   const nextOrder = rows.length > 0 ? rows[rows.length - 1].order + 1 : 0
 
@@ -189,10 +247,11 @@ export default function SheetView({ sheetId, onBack }: Props) {
       </div>
       {saveMsg && <p className="save-toast">{saveMsg}</p>}
 
-      <div className="table-wrap">
+      <div className={`table-wrap ${draggingId ? 'is-dragging' : ''}`}>
         <table className="loads">
           <thead>
             <tr>
+              <th className="col-drag" aria-label="Reorder"></th>
               <th className="col-date">Date</th>
               {cols.container && <th className="col-id">Container/Trailer</th>}
               {cols.chassis && <th className="col-id">Chassis</th>}
@@ -213,12 +272,18 @@ export default function SheetView({ sheetId, onBack }: Props) {
                   row={row}
                   subtotal={weekTotals.get(row.id) ?? 0}
                   colCount={colCount}
+                  dragging={draggingId === row.id}
+                  dropTarget={overId === row.id && draggingId !== row.id}
+                  onDragStart={() => startDrag(row.id)}
                 />
               ) : (
                 <RowEditor
                   key={row.id}
                   row={row}
                   cols={cols}
+                  dragging={draggingId === row.id}
+                  dropTarget={overId === row.id && draggingId !== row.id}
+                  onDragStart={() => startDrag(row.id)}
                   onScanId={(field) => setIdScan({ field, rowId: row.id })}
                 />
               ),
@@ -233,6 +298,9 @@ export default function SheetView({ sheetId, onBack }: Props) {
           </tbody>
         </table>
       </div>
+      {rows.length > 1 && (
+        <p className="muted drag-hint">Hold and drag ⋮⋮ to move loads between days or weeks.</p>
+      )}
 
       <SummaryPanel
         sheet={sheet}
@@ -313,18 +381,53 @@ interface ColFlags {
   notes: boolean
 }
 
+function DragHandle({ onDragStart }: { onDragStart: () => void }) {
+  return (
+    <button
+      type="button"
+      className="drag-handle"
+      aria-label="Drag to reorder"
+      title="Drag to reorder"
+      onPointerDown={(e) => {
+        e.preventDefault()
+        onDragStart()
+      }}
+    >
+      ⋮⋮
+    </button>
+  )
+}
+
 function DividerRow({
   row,
   subtotal,
   colCount,
+  dragging,
+  dropTarget,
+  onDragStart,
 }: {
   row: LoadRow
   subtotal: number
   colCount: number
+  dragging: boolean
+  dropTarget: boolean
+  onDragStart: () => void
 }) {
   return (
-    <tr className="divider-row">
-      <td colSpan={colCount - 2}>
+    <tr
+      data-row-id={row.id}
+      className={[
+        'divider-row',
+        dragging ? 'row-dragging' : '',
+        dropTarget ? 'row-drop-target' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      <td className="col-drag">
+        <DragHandle onDragStart={onDragStart} />
+      </td>
+      <td colSpan={colCount - 3}>
         <CellInput
           value={row.date}
           placeholder="Week of 6/22"
@@ -348,15 +451,33 @@ function DividerRow({
 function RowEditor({
   row,
   cols,
+  dragging,
+  dropTarget,
+  onDragStart,
   onScanId,
 }: {
   row: LoadRow
   cols: ColFlags
+  dragging: boolean
+  dropTarget: boolean
+  onDragStart: () => void
   onScanId: (field: 'container' | 'chassis') => void
 }) {
   const update = (patch: Partial<LoadRow>) => db.rows.update(row.id, patch)
   return (
-    <tr className={row.highlighted ? 'row-highlighted' : undefined}>
+    <tr
+      data-row-id={row.id}
+      className={[
+        row.highlighted ? 'row-highlighted' : '',
+        dragging ? 'row-dragging' : '',
+        dropTarget ? 'row-drop-target' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      <td className="col-drag">
+        <DragHandle onDragStart={onDragStart} />
+      </td>
       <td>
         <CellInput value={row.date} placeholder="6/22" onCommit={(v) => update({ date: v })} />
       </td>

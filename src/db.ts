@@ -77,6 +77,26 @@ export async function addEmptyRow(sheetId: string, order: number): Promise<void>
   })
 }
 
+/** Move a row (load or week divider) before/after another row, then renumber orders. */
+export async function moveRowRelative(
+  orderedIds: string[],
+  fromId: string,
+  toId: string,
+  place: 'before' | 'after',
+): Promise<void> {
+  if (fromId === toId) return
+  const list = [...orderedIds]
+  const from = list.indexOf(fromId)
+  if (from < 0 || list.indexOf(toId) < 0) return
+  list.splice(from, 1)
+  const to = list.indexOf(toId)
+  if (to < 0) return
+  list.splice(place === 'after' ? to + 1 : to, 0, fromId)
+  await db.transaction('rw', db.rows, async () => {
+    await Promise.all(list.map((id, order) => db.rows.update(id, { order })))
+  })
+}
+
 export async function addWeekDivider(sheetId: string, order: number): Promise<void> {
   const label = `Week of ${new Date().toLocaleDateString('en-US', {
     month: 'numeric',
