@@ -264,7 +264,9 @@ export default function SheetView({ sheetId, onBack }: Props) {
         <table className="loads">
           <thead>
             <tr>
-              <th className="col-drag" aria-label="Reorder"></th>
+              <th className="col-drag" aria-label="Reorder">
+                ↕
+              </th>
               <th className="col-date">Date</th>
               {cols.container && <th className="col-id">Container/Trailer</th>}
               {cols.chassis && <th className="col-id">Chassis</th>}
