@@ -30,10 +30,21 @@ export default function SheetView({ sheetId, onBack }: Props) {
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [overId, setOverId] = useState<string | null>(null)
   const [dropPlace, setDropPlace] = useState<'before' | 'after'>('before')
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 719px)').matches,
+  )
   const dragIdRef = useRef<string | null>(null)
   const overIdRef = useRef<string | null>(null)
   const placeRef = useRef<'before' | 'after'>('before')
   const rowsRef = useRef<LoadRow[]>([])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 719px)')
+    const onChange = () => setIsMobile(mq.matches)
+    onChange()
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
 
   function handleSave() {
     flushAllInputs()
@@ -68,10 +79,10 @@ export default function SheetView({ sheetId, onBack }: Props) {
     if (!draggingId) return
     function onMove(e: PointerEvent) {
       const el = document.elementFromPoint(e.clientX, e.clientY)
-      const tr = el?.closest('tr[data-row-id]') as HTMLElement | null
-      const id = tr?.dataset.rowId ?? null
-      if (!tr || !id || id === dragIdRef.current) return
-      const rect = tr.getBoundingClientRect()
+      const target = el?.closest('[data-row-id]') as HTMLElement | null
+      const id = target?.dataset.rowId ?? null
+      if (!target || !id || id === dragIdRef.current) return
+      const rect = target.getBoundingClientRect()
       const place: 'before' | 'after' =
         e.clientY > rect.top + rect.height / 2 ? 'after' : 'before'
       overIdRef.current = id
@@ -260,65 +271,95 @@ export default function SheetView({ sheetId, onBack }: Props) {
       </div>
       {saveMsg && <p className="save-toast">{saveMsg}</p>}
 
-      <div className={`table-wrap ${draggingId ? 'is-dragging' : ''}`}>
-        <table className="loads">
-          <thead>
-            <tr>
-              <th className="col-drag" aria-label="Reorder">
-                ↕
-              </th>
-              <th className="col-date">Date</th>
-              {cols.container && <th className="col-id">Container/Trailer</th>}
-              {cols.chassis && <th className="col-id">Chassis</th>}
-              {cols.from && <th className="col-loc">From</th>}
-              {cols.to && <th className="col-loc">To</th>}
-              {cols.miles && <th className="col-rate">Miles</th>}
-              {cols.hours && <th className="col-rate">Hours</th>}
-              {cols.rate && <th className="col-rate">Rate</th>}
-              {cols.notes && <th className="col-notes">Notes</th>}
-              <th className="col-x"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) =>
-              row.kind === 'divider' ? (
-                <DividerRow
-                  key={row.id}
-                  row={row}
-                  subtotal={weekTotals.get(row.id) ?? 0}
-                  colCount={colCount}
-                  dragging={draggingId === row.id}
-                  dropTarget={overId === row.id && draggingId !== row.id}
-                  dropPlace={dropPlace}
-                  onDragStart={(e) => startDrag(row.id, e)}
-                />
-              ) : (
-                <RowEditor
-                  key={row.id}
-                  row={row}
-                  cols={cols}
-                  dragging={draggingId === row.id}
-                  dropTarget={overId === row.id && draggingId !== row.id}
-                  dropPlace={dropPlace}
-                  onDragStart={(e) => startDrag(row.id, e)}
-                  onScanId={(field) => setIdScan({ field, rowId: row.id })}
-                />
-              ),
-            )}
-            {rows.length === 0 && (
+      {isMobile ? (
+        <div className={`loads-mobile ${draggingId ? 'is-dragging' : ''}`}>
+          {rows.map((row) =>
+            row.kind === 'divider' ? (
+              <DividerCard
+                key={row.id}
+                row={row}
+                subtotal={weekTotals.get(row.id) ?? 0}
+                dragging={draggingId === row.id}
+                dropTarget={overId === row.id && draggingId !== row.id}
+                dropPlace={dropPlace}
+                onDragStart={(e) => startDrag(row.id, e)}
+              />
+            ) : (
+              <LoadCard
+                key={row.id}
+                row={row}
+                cols={cols}
+                dragging={draggingId === row.id}
+                dropTarget={overId === row.id && draggingId !== row.id}
+                dropPlace={dropPlace}
+                onDragStart={(e) => startDrag(row.id, e)}
+                onScanId={(field) => setIdScan({ field, rowId: row.id })}
+              />
+            ),
+          )}
+          {rows.length === 0 && (
+            <p className="empty-row muted">No loads yet — scan a photo or add a row.</p>
+          )}
+        </div>
+      ) : (
+        <div className={`table-wrap loads-desktop ${draggingId ? 'is-dragging' : ''}`}>
+          <table className="loads">
+            <thead>
               <tr>
-                <td colSpan={colCount} className="empty-row">
-                  No loads yet — scan a photo or add a row.
-                </td>
+                <th className="col-drag" aria-label="Reorder">
+                  ↕
+                </th>
+                <th className="col-date">Date</th>
+                {cols.container && <th className="col-id">Load</th>}
+                {cols.chassis && <th className="col-id">Chassis</th>}
+                {cols.from && <th className="col-loc">From</th>}
+                {cols.to && <th className="col-loc">To</th>}
+                {cols.miles && <th className="col-rate">Miles</th>}
+                {cols.hours && <th className="col-rate">Hours</th>}
+                {cols.rate && <th className="col-rate">Rate</th>}
+                {cols.notes && <th className="col-notes">Notes</th>}
+                <th className="col-x"></th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {rows.map((row) =>
+                row.kind === 'divider' ? (
+                  <DividerRow
+                    key={row.id}
+                    row={row}
+                    subtotal={weekTotals.get(row.id) ?? 0}
+                    colCount={colCount}
+                    dragging={draggingId === row.id}
+                    dropTarget={overId === row.id && draggingId !== row.id}
+                    dropPlace={dropPlace}
+                    onDragStart={(e) => startDrag(row.id, e)}
+                  />
+                ) : (
+                  <RowEditor
+                    key={row.id}
+                    row={row}
+                    cols={cols}
+                    dragging={draggingId === row.id}
+                    dropTarget={overId === row.id && draggingId !== row.id}
+                    dropPlace={dropPlace}
+                    onDragStart={(e) => startDrag(row.id, e)}
+                    onScanId={(field) => setIdScan({ field, rowId: row.id })}
+                  />
+                ),
+              )}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={colCount} className="empty-row">
+                    No loads yet — scan a photo or add a row.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
       {rows.length > 1 && (
-        <p className="muted drag-hint">
-          Drag ⋮⋮ up or down to put a load in the right spot (drop above or below another row).
-        </p>
+        <p className="muted drag-hint">Drag the handle up or down to put a load in the right spot.</p>
       )}
 
       <SummaryPanel
@@ -471,6 +512,214 @@ function DividerRow({
         </button>
       </td>
     </tr>
+  )
+}
+
+function DividerCard({
+  row,
+  subtotal,
+  dragging,
+  dropTarget,
+  dropPlace,
+  onDragStart,
+}: {
+  row: LoadRow
+  subtotal: number
+  dragging: boolean
+  dropTarget: boolean
+  dropPlace: 'before' | 'after'
+  onDragStart: (e: ReactPointerEvent) => void
+}) {
+  return (
+    <div
+      data-row-id={row.id}
+      className={[
+        'load-card divider-card',
+        dragging ? 'row-dragging' : '',
+        dropTarget ? `row-drop-target row-drop-${dropPlace}` : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      <div className="load-card-top">
+        <DragHandle onDragStart={onDragStart} />
+        <CellInput
+          value={row.date}
+          placeholder="Week of 6/22"
+          onCommit={(v) => db.rows.update(row.id, { date: v })}
+        />
+        <strong className="divider-total">{money(subtotal)}</strong>
+        <button
+          className="row-delete"
+          aria-label="Delete week divider"
+          onClick={() => db.rows.delete(row.id)}
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function LoadCard({
+  row,
+  cols,
+  dragging,
+  dropTarget,
+  dropPlace,
+  onDragStart,
+  onScanId,
+}: {
+  row: LoadRow
+  cols: ColFlags
+  dragging: boolean
+  dropTarget: boolean
+  dropPlace: 'before' | 'after'
+  onDragStart: (e: ReactPointerEvent) => void
+  onScanId: (field: 'container' | 'chassis') => void
+}) {
+  const update = (patch: Partial<LoadRow>) => db.rows.update(row.id, patch)
+  return (
+    <div
+      data-row-id={row.id}
+      className={[
+        'load-card',
+        row.highlighted ? 'row-highlighted' : '',
+        dragging ? 'row-dragging' : '',
+        dropTarget ? `row-drop-target row-drop-${dropPlace}` : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      <div className="load-card-top">
+        <DragHandle onDragStart={onDragStart} />
+        <label className="load-field date-field">
+          <span>Date</span>
+          <CellInput value={row.date} placeholder="6/22" onCommit={(v) => update({ date: v })} />
+        </label>
+        <div className="row-actions">
+          <button
+            type="button"
+            className={`row-highlight ${row.highlighted ? 'on' : ''}`}
+            aria-label={row.highlighted ? 'Remove highlight' : 'Highlight load'}
+            onClick={() => update({ highlighted: !row.highlighted })}
+          >
+            ✦
+          </button>
+          <button
+            className="row-delete"
+            aria-label="Delete row"
+            onClick={() => db.rows.delete(row.id)}
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {cols.container && (
+        <label className="load-field">
+          <span>Load</span>
+          <div className="id-cell">
+            <CellInput
+              value={row.container}
+              className="mono id-input"
+              autoUppercase
+              placeholder="EMHU650693"
+              onCommit={(v) => update({ container: v })}
+            />
+            <button
+              type="button"
+              className="id-scan-btn"
+              aria-label="Scan container from truck"
+              onClick={() => onScanId('container')}
+            >
+              📷
+            </button>
+          </div>
+        </label>
+      )}
+
+      {cols.chassis && (
+        <label className="load-field">
+          <span>Chassis</span>
+          <div className="id-cell">
+            <CellInput
+              value={row.chassis}
+              className="mono id-input"
+              autoUppercase
+              placeholder="TSFZ567142"
+              onCommit={(v) => update({ chassis: v })}
+            />
+            <button
+              type="button"
+              className="id-scan-btn"
+              aria-label="Scan chassis from truck"
+              onClick={() => onScanId('chassis')}
+            >
+              📷
+            </button>
+          </div>
+        </label>
+      )}
+
+      <div className="load-card-grid">
+        {cols.from && (
+          <label className="load-field">
+            <span>From</span>
+            <CellInput value={row.from} onCommit={(v) => update({ from: v })} />
+          </label>
+        )}
+        {cols.to && (
+          <label className="load-field">
+            <span>To</span>
+            <CellInput value={row.to} onCommit={(v) => update({ to: v })} />
+          </label>
+        )}
+        {cols.miles && (
+          <label className="load-field">
+            <span>Miles</span>
+            <CellInput
+              value={row.miles != null ? String(row.miles) : ''}
+              className="num"
+              inputMode="decimal"
+              placeholder="0"
+              onCommit={(v) => update({ miles: parseMoneyInput(v) })}
+            />
+          </label>
+        )}
+        {cols.hours && (
+          <label className="load-field">
+            <span>Hours</span>
+            <CellInput
+              value={row.hours != null ? String(row.hours) : ''}
+              className="num"
+              inputMode="decimal"
+              placeholder="0"
+              onCommit={(v) => update({ hours: parseMoneyInput(v) })}
+            />
+          </label>
+        )}
+        {cols.rate && (
+          <label className="load-field">
+            <span>Rate</span>
+            <CellInput
+              value={row.rate != null ? row.rate.toFixed(2) : ''}
+              className="num"
+              inputMode="decimal"
+              placeholder="0.00"
+              onCommit={(v) => update({ rate: parseMoneyInput(v) })}
+            />
+          </label>
+        )}
+      </div>
+
+      {cols.notes && (
+        <label className="load-field">
+          <span>Notes</span>
+          <CellInput value={row.notes} onCommit={(v) => update({ notes: v })} />
+        </label>
+      )}
+    </div>
   )
 }
 
