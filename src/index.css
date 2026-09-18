@@ -340,7 +340,9 @@ body {
 
 table.loads {
   border-collapse: collapse;
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
+  table-layout: fixed;
   font-size: 14px;
 }
 
@@ -387,8 +389,9 @@ table.loads td input {
   border: none;
   color: var(--text);
   padding: 10px 8px;
-  font-size: 15px;
+  font-size: 16px; /* iOS: avoid zoom + keep text readable while typing */
   min-width: 0;
+  box-sizing: border-box;
 }
 
 table.loads td input:focus {
@@ -399,7 +402,8 @@ table.loads td input:focus {
 }
 
 .col-drag {
-  width: 28px;
+  width: 36px;
+  min-width: 36px;
   padding: 0 !important;
   text-align: center;
 }
@@ -409,15 +413,16 @@ table.loads td input:focus {
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
   background: transparent;
   border: none;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 16px;
   letter-spacing: -2px;
   cursor: grab;
   touch-action: none;
   user-select: none;
+  -webkit-user-select: none;
   padding: 0 2px;
 }
 
@@ -429,6 +434,7 @@ table.loads td input:focus {
 .table-wrap.is-dragging {
   user-select: none;
   cursor: grabbing;
+  touch-action: none;
 }
 
 .table-wrap.is-dragging input {
@@ -436,11 +442,16 @@ table.loads td input:focus {
 }
 
 tr.row-dragging {
-  opacity: 0.45;
+  opacity: 0.4;
+  pointer-events: none;
 }
 
-tr.row-drop-target td {
-  box-shadow: inset 0 3px 0 0 var(--text);
+tr.row-drop-before td {
+  box-shadow: inset 0 3px 0 0 var(--accent);
+}
+
+tr.row-drop-after td {
+  box-shadow: inset 0 -3px 0 0 var(--accent);
 }
 
 .drag-hint {
@@ -450,19 +461,23 @@ tr.row-drop-target td {
 }
 
 .col-date {
-  min-width: 76px;
+  width: 72px;
+  max-width: 80px;
 }
 .col-id {
-  min-width: 130px;
+  width: 132px;
+  max-width: 148px;
 }
 .col-loc {
-  min-width: 90px;
+  min-width: 72px;
+  max-width: 100px;
 }
 .col-rate {
-  min-width: 84px;
+  width: 72px;
+  max-width: 84px;
 }
 .col-notes {
-  min-width: 120px;
+  min-width: 88px;
 }
 .col-x {
   width: 56px;
@@ -510,21 +525,27 @@ tr.row-highlighted td input {
 .id-cell {
   display: flex;
   align-items: stretch;
+  width: 100%;
+  max-width: 148px;
   min-width: 0;
 }
 
+.id-cell .id-input,
 .id-cell input {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
+  width: 100%;
+  letter-spacing: 0.02em;
 }
 
 .id-scan-btn {
-  flex-shrink: 0;
+  flex: 0 0 34px;
+  width: 34px;
   background: transparent;
   border: none;
   border-left: 1px solid var(--border);
   color: var(--text);
-  padding: 0 6px;
+  padding: 0;
   font-size: 14px;
   cursor: pointer;
 }

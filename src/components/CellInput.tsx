@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { registerFlusher } from '../flush'
 
 interface Props {
@@ -7,35 +7,50 @@ interface Props {
   className?: string
   placeholder?: string
   inputMode?: 'decimal'
+  /** Show and save uppercase (container / chassis IDs). */
+  autoUppercase?: boolean
 }
 
 /**
- * Uncontrolled input that auto-saves while typing (debounced) and on blur,
- * and flushes when the page is hidden or the user taps Save — so leaving
- * the site doesn't drop half-typed cells.
+ * Local-state input so typed characters always show immediately.
+ * Auto-saves while typing (debounced) and on blur, and flushes when the
+ * page is hidden or the user taps Save.
  */
-export default function CellInput({ value, onCommit, className, placeholder, inputMode }: Props) {
+export default function CellInput({
+  value,
+  onCommit,
+  className,
+  placeholder,
+  inputMode,
+  autoUppercase,
+}: Props) {
   const ref = useRef<HTMLInputElement>(null)
+  const [local, setLocal] = useState(value)
+  const localRef = useRef(value)
   const lastCommitted = useRef(value)
   const onCommitRef = useRef(onCommit)
+  const autoUpperRef = useRef(!!autoUppercase)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const focused = useRef(false)
 
   onCommitRef.current = onCommit
+  autoUpperRef.current = !!autoUppercase
+  localRef.current = local
 
   useEffect(() => {
-    const el = ref.current
-    if (!el) return
     // Only sync from outside when the field isn't being edited
-    if (document.activeElement !== el && value !== lastCommitted.current) {
-      el.value = value
+    if (!focused.current && value !== lastCommitted.current) {
+      setLocal(value)
+      localRef.current = value
       lastCommitted.current = value
     }
   }, [value])
 
   function commit(raw: string) {
-    if (raw === lastCommitted.current) return
-    lastCommitted.current = raw
-    onCommitRef.current(raw)
+    const next = autoUpperRef.current ? raw.toUpperCase() : raw
+    if (next === lastCommitted.current) return
+    lastCommitted.current = next
+    onCommitRef.current(next)
   }
 
   function flush() {
@@ -43,8 +58,7 @@ export default function CellInput({ value, onCommit, className, placeholder, inp
       clearTimeout(timer.current)
       timer.current = null
     }
-    const el = ref.current
-    if (el) commit(el.value)
+    commit(localRef.current)
   }
 
   useEffect(() => {
@@ -60,23 +74,31 @@ export default function CellInput({ value, onCommit, className, placeholder, inp
       document.removeEventListener('visibilitychange', onHide)
       if (timer.current) clearTimeout(timer.current)
     }
-    // flush closes over ref/lastCommitted; intentionally mount-once
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (
     <input
       ref={ref}
-      defaultValue={value}
+      value={local}
       className={className}
       placeholder={placeholder}
       inputMode={inputMode}
+      autoCapitalize={autoUppercase ? 'characters' : undefined}
+      autoCorrect={autoUppercase ? 'off' : undefined}
+      spellCheck={autoUppercase ? false : undefined}
+      onFocus={() => {
+        focused.current = true
+      }}
       onChange={(e) => {
+        const next = autoUppercase ? e.target.value.toUpperCase() : e.target.value
+        setLocal(next)
+        localRef.current = next
         if (timer.current) clearTimeout(timer.current)
-        const next = e.target.value
         timer.current = setTimeout(() => commit(next), 400)
       }}
       onBlur={(e) => {
+        focused.current = false
         if (timer.current) {
           clearTimeout(timer.current)
           timer.current = null
