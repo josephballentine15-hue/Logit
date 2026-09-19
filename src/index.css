@@ -339,8 +339,7 @@ body {
 }
 
 table.loads {
-  border-collapse: separate;
-  border-spacing: 0;
+  border-collapse: collapse;
   width: max-content;
   min-width: 100%;
   table-layout: fixed;
@@ -358,14 +357,12 @@ table.loads th {
   white-space: nowrap;
   position: sticky;
   top: 0;
-  z-index: 3;
   background: var(--bg-raised);
 }
 
 table.loads td {
   border-bottom: 1px solid var(--border);
   padding: 0;
-  background: var(--bg-raised);
 }
 
 /* Vertical lines between the slots so cells don't blur together */
@@ -404,40 +401,11 @@ table.loads td input:focus {
   border-radius: 4px;
 }
 
-/* Drag handle stays pinned on the far left, right before Date */
 .col-drag {
-  width: 40px;
-  min-width: 40px;
-  max-width: 40px;
+  width: 36px;
+  min-width: 36px;
   padding: 0 !important;
   text-align: center;
-  position: sticky;
-  left: 0;
-  z-index: 2;
-  background: var(--bg-raised);
-  box-shadow: 1px 0 0 var(--border);
-}
-
-table.loads th.col-drag {
-  z-index: 5;
-  padding: 8px 0 !important;
-  font-size: 14px;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.col-date {
-  width: 72px;
-  max-width: 80px;
-  position: sticky;
-  left: 40px;
-  z-index: 2;
-  background: var(--bg-raised);
-  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.12);
-}
-
-table.loads th.col-date {
-  z-index: 5;
 }
 
 .drag-handle {
@@ -445,12 +413,12 @@ table.loads th.col-date {
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 48px;
+  min-height: 44px;
   background: transparent;
   border: none;
-  color: var(--text);
-  font-size: 18px;
-  letter-spacing: -3px;
+  color: var(--muted);
+  font-size: 16px;
+  letter-spacing: -2px;
   cursor: grab;
   touch-action: none;
   user-select: none;
@@ -460,8 +428,7 @@ table.loads th.col-date {
 
 .drag-handle:active {
   cursor: grabbing;
-  color: var(--accent);
-  background: var(--bg-input);
+  color: var(--text);
 }
 
 .table-wrap.is-dragging {
@@ -493,6 +460,10 @@ tr.row-drop-after td {
   text-align: center;
 }
 
+.col-date {
+  width: 72px;
+  max-width: 80px;
+}
 .col-id {
   width: 132px;
   max-width: 148px;
@@ -538,11 +509,6 @@ tr.row-highlighted td {
   color: #111;
 }
 
-tr.row-highlighted td.col-drag,
-tr.row-highlighted td.col-date {
-  background: #fff3a0;
-}
-
 tr.row-highlighted td input {
   color: #111;
 }
@@ -550,11 +516,6 @@ tr.row-highlighted td input {
 :root[data-theme='dark'] tr.row-highlighted td {
   background: #5c4e00;
   color: #fff8c8;
-}
-
-:root[data-theme='dark'] tr.row-highlighted td.col-drag,
-:root[data-theme='dark'] tr.row-highlighted td.col-date {
-  background: #5c4e00;
 }
 
 :root[data-theme='dark'] tr.row-highlighted td input {
