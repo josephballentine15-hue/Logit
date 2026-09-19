@@ -338,126 +338,11 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Mobile: stacked full-width cards (no sideways scroll) */
-.loads-mobile {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.loads-mobile.is-dragging {
-  user-select: none;
-  touch-action: none;
-}
-
-.load-card {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--bg-raised);
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.load-card.row-drop-before {
-  box-shadow: inset 0 3px 0 0 var(--accent);
-}
-
-.load-card.row-drop-after {
-  box-shadow: inset 0 -3px 0 0 var(--accent);
-}
-
-.load-card-top {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.load-card-top .drag-handle {
-  width: 36px;
-  min-height: 44px;
-  flex-shrink: 0;
-}
-
-.load-card-top .date-field {
-  flex: 1;
-  min-width: 0;
-}
-
-.load-card-top .divider-total {
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-.load-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.load-field > span {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-}
-
-.load-field input {
-  width: 100%;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  padding: 10px 10px;
-  font-size: 16px;
-  box-sizing: border-box;
-  min-width: 0;
-}
-
-.load-field .id-cell {
-  width: 100%;
-  max-width: none;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--bg-input);
-}
-
-.load-field .id-cell input {
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  padding: 10px;
-}
-
-.load-card-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.divider-card .load-card-top input {
-  flex: 1;
-  min-width: 0;
-  background: transparent;
-  border: none;
-  color: var(--text);
-  font-size: 16px;
-  font-weight: 600;
-  padding: 8px 4px;
-}
-
-/* Desktop spreadsheet only — mobile uses cards via JS */
-.loads-desktop {
-  display: block;
-}
-
 table.loads {
   border-collapse: separate;
   border-spacing: 0;
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   table-layout: fixed;
   font-size: 14px;
 }
@@ -589,8 +474,7 @@ table.loads th.col-date {
   pointer-events: none;
 }
 
-tr.row-dragging,
-.load-card.row-dragging {
+tr.row-dragging {
   opacity: 0.4;
   pointer-events: none;
 }
@@ -610,16 +494,19 @@ tr.row-drop-after td {
 }
 
 .col-id {
-  width: 20%;
+  width: 132px;
+  max-width: 148px;
 }
 .col-loc {
-  width: 12%;
+  min-width: 72px;
+  max-width: 100px;
 }
 .col-rate {
-  width: 10%;
+  width: 72px;
+  max-width: 84px;
 }
 .col-notes {
-  width: 14%;
+  min-width: 88px;
 }
 .col-x {
   width: 56px;
@@ -646,8 +533,7 @@ tr.row-drop-after td {
   color: #c9a000;
 }
 
-tr.row-highlighted td,
-.load-card.row-highlighted {
+tr.row-highlighted td {
   background: #fff3a0;
   color: #111;
 }
@@ -657,13 +543,11 @@ tr.row-highlighted td.col-date {
   background: #fff3a0;
 }
 
-tr.row-highlighted td input,
-.load-card.row-highlighted input {
+tr.row-highlighted td input {
   color: #111;
 }
 
-:root[data-theme='dark'] tr.row-highlighted td,
-:root[data-theme='dark'] .load-card.row-highlighted {
+:root[data-theme='dark'] tr.row-highlighted td {
   background: #5c4e00;
   color: #fff8c8;
 }
@@ -673,8 +557,7 @@ tr.row-highlighted td input,
   background: #5c4e00;
 }
 
-:root[data-theme='dark'] tr.row-highlighted td input,
-:root[data-theme='dark'] .load-card.row-highlighted input {
+:root[data-theme='dark'] tr.row-highlighted td input {
   color: #fff8c8;
 }
 
@@ -682,6 +565,7 @@ tr.row-highlighted td input,
   display: flex;
   align-items: stretch;
   width: 100%;
+  max-width: 148px;
   min-width: 0;
 }
 
