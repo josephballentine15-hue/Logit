@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, uid, addEmptyRow, addWeekDivider, moveRowRelative } from '../db'
 import { flushAllInputs } from '../flush'
@@ -29,10 +29,8 @@ export default function SheetView({ sheetId, onBack }: Props) {
   const [idScan, setIdScan] = useState<null | { field: IdField; rowId?: string }>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [overId, setOverId] = useState<string | null>(null)
-  const [dropPlace, setDropPlace] = useState<'before' | 'after'>('before')
   const dragIdRef = useRef<string | null>(null)
   const overIdRef = useRef<string | null>(null)
-  const placeRef = useRef<'before' | 'after'>('before')
   const rowsRef = useRef<LoadRow[]>([])
 
   function handleSave() {
@@ -70,27 +68,23 @@ export default function SheetView({ sheetId, onBack }: Props) {
       const el = document.elementFromPoint(e.clientX, e.clientY)
       const tr = el?.closest('tr[data-row-id]') as HTMLElement | null
       const id = tr?.dataset.rowId ?? null
-      if (!tr || !id || id === dragIdRef.current) return
-      const rect = tr.getBoundingClientRect()
-      const place: 'before' | 'after' =
-        e.clientY > rect.top + rect.height / 2 ? 'after' : 'before'
-      overIdRef.current = id
-      placeRef.current = place
-      setOverId(id)
-      setDropPlace(place)
+      if (id && id !== dragIdRef.current) {
+        overIdRef.current = id
+        setOverId(id)
+      }
     }
     async function onUp() {
       const from = dragIdRef.current
       const to = overIdRef.current
-      const place = placeRef.current
       const current = rowsRef.current
       dragIdRef.current = null
       overIdRef.current = null
-      placeRef.current = 'before'
       setDraggingId(null)
       setOverId(null)
-      setDropPlace('before')
       if (!from || !to || from === to) return
+      const target = current.find((r) => r.id === to)
+      // Drop on a week header → put the row into that week (right under it)
+      const place = target?.kind === 'divider' ? 'after' : 'before'
       await moveRowRelative(
         current.map((r) => r.id),
         from,
@@ -108,19 +102,12 @@ export default function SheetView({ sheetId, onBack }: Props) {
     }
   }, [draggingId])
 
-  function startDrag(id: string, e: ReactPointerEvent) {
+  function startDrag(id: string) {
     flushAllInputs()
-    try {
-      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    } catch {
-      /* ignore */
-    }
     dragIdRef.current = id
     overIdRef.current = null
-    placeRef.current = 'before'
     setDraggingId(id)
     setOverId(null)
-    setDropPlace('before')
   }
 
   if (!sheet || !rows || !deductions || !extras) return null
@@ -287,8 +274,7 @@ export default function SheetView({ sheetId, onBack }: Props) {
                   colCount={colCount}
                   dragging={draggingId === row.id}
                   dropTarget={overId === row.id && draggingId !== row.id}
-                  dropPlace={dropPlace}
-                  onDragStart={(e) => startDrag(row.id, e)}
+                  onDragStart={() => startDrag(row.id)}
                 />
               ) : (
                 <RowEditor
@@ -297,8 +283,7 @@ export default function SheetView({ sheetId, onBack }: Props) {
                   cols={cols}
                   dragging={draggingId === row.id}
                   dropTarget={overId === row.id && draggingId !== row.id}
-                  dropPlace={dropPlace}
-                  onDragStart={(e) => startDrag(row.id, e)}
+                  onDragStart={() => startDrag(row.id)}
                   onScanId={(field) => setIdScan({ field, rowId: row.id })}
                 />
               ),
@@ -314,9 +299,7 @@ export default function SheetView({ sheetId, onBack }: Props) {
         </table>
       </div>
       {rows.length > 1 && (
-        <p className="muted drag-hint">
-          Drag ⋮⋮ up or down to put a load in the right spot (drop above or below another row).
-        </p>
+        <p className="muted drag-hint">Hold and drag ⋮⋮ to move loads between days or weeks.</p>
       )}
 
       <SummaryPanel
@@ -398,11 +381,7 @@ interface ColFlags {
   notes: boolean
 }
 
-function DragHandle({
-  onDragStart,
-}: {
-  onDragStart: (e: ReactPointerEvent) => void
-}) {
+function DragHandle({ onDragStart }: { onDragStart: () => void }) {
   return (
     <button
       type="button"
@@ -411,8 +390,7 @@ function DragHandle({
       title="Drag to reorder"
       onPointerDown={(e) => {
         e.preventDefault()
-        e.stopPropagation()
-        onDragStart(e)
+        onDragStart()
       }}
     >
       ⋮⋮
@@ -426,7 +404,6 @@ function DividerRow({
   colCount,
   dragging,
   dropTarget,
-  dropPlace,
   onDragStart,
 }: {
   row: LoadRow
@@ -434,8 +411,7 @@ function DividerRow({
   colCount: number
   dragging: boolean
   dropTarget: boolean
-  dropPlace: 'before' | 'after'
-  onDragStart: (e: ReactPointerEvent) => void
+  onDragStart: () => void
 }) {
   return (
     <tr
@@ -443,7 +419,7 @@ function DividerRow({
       className={[
         'divider-row',
         dragging ? 'row-dragging' : '',
-        dropTarget ? `row-drop-target row-drop-${dropPlace}` : '',
+        dropTarget ? 'row-drop-target' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -477,7 +453,6 @@ function RowEditor({
   cols,
   dragging,
   dropTarget,
-  dropPlace,
   onDragStart,
   onScanId,
 }: {
@@ -485,8 +460,7 @@ function RowEditor({
   cols: ColFlags
   dragging: boolean
   dropTarget: boolean
-  dropPlace: 'before' | 'after'
-  onDragStart: (e: ReactPointerEvent) => void
+  onDragStart: () => void
   onScanId: (field: 'container' | 'chassis') => void
 }) {
   const update = (patch: Partial<LoadRow>) => db.rows.update(row.id, patch)
@@ -496,7 +470,7 @@ function RowEditor({
       className={[
         row.highlighted ? 'row-highlighted' : '',
         dragging ? 'row-dragging' : '',
-        dropTarget ? `row-drop-target row-drop-${dropPlace}` : '',
+        dropTarget ? 'row-drop-target' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -504,18 +478,16 @@ function RowEditor({
       <td className="col-drag">
         <DragHandle onDragStart={onDragStart} />
       </td>
-      <td className="col-date">
+      <td>
         <CellInput value={row.date} placeholder="6/22" onCommit={(v) => update({ date: v })} />
       </td>
       {cols.container && (
-        <td className="col-id">
+        <td>
           <div className="id-cell">
             <CellInput
               value={row.container}
-              className="mono id-input"
-              autoUppercase
-              placeholder="EMHU650693"
-              onCommit={(v) => update({ container: v })}
+              className="mono"
+              onCommit={(v) => update({ container: v.toUpperCase() })}
             />
             <button
               type="button"
@@ -530,14 +502,12 @@ function RowEditor({
         </td>
       )}
       {cols.chassis && (
-        <td className="col-id">
+        <td>
           <div className="id-cell">
             <CellInput
               value={row.chassis}
-              className="mono id-input"
-              autoUppercase
-              placeholder="TSFZ567142"
-              onCommit={(v) => update({ chassis: v })}
+              className="mono"
+              onCommit={(v) => update({ chassis: v.toUpperCase() })}
             />
             <button
               type="button"
